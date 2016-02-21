@@ -290,7 +290,7 @@ static GstElement *owr_video_renderer_get_element(OwrMediaRenderer *renderer, gu
     OwrVideoRenderer *video_renderer;
     OwrVideoRendererPrivate *priv;
     GstElement *renderer_bin;
-    GstElement *upload, *convert, *balance, *flip, *sink;
+    GstElement *balance, *flip, *sink;
     GstPad *ghostpad, *sinkpad;
     gchar *bin_name;
 
@@ -302,15 +302,12 @@ static GstElement *owr_video_renderer_get_element(OwrMediaRenderer *renderer, gu
     renderer_bin = gst_bin_new(bin_name);
     g_free(bin_name);
 
-    upload = gst_element_factory_make("glupload", "video-renderer-upload");
-    convert = gst_element_factory_make("glcolorconvert", "video-renderer-convert");
-
-    balance = gst_element_factory_make("glcolorbalance", "video-renderer-balance");
+    balance = gst_element_factory_make("videobalance", "video-renderer-balance");
     g_signal_connect_object(renderer, "notify::disabled", G_CALLBACK(renderer_disabled),
         balance, 0);
     renderer_disabled(renderer, NULL, balance);
 
-    flip = gst_element_factory_make("glvideoflip", "video-renderer-flip");
+    flip = gst_element_factory_make("videoflip", "video-renderer-flip");
     g_assert(flip);
     g_signal_connect_object(renderer, "notify::rotation", G_CALLBACK(update_flip_method), flip, 0);
     g_signal_connect_object(renderer, "notify::mirror", G_CALLBACK(update_flip_method), flip, 0);
@@ -330,14 +327,12 @@ static GstElement *owr_video_renderer_get_element(OwrMediaRenderer *renderer, gu
             g_object_unref(sink_element);
     }
 
-    gst_bin_add_many(GST_BIN(renderer_bin), upload, convert, balance, flip, sink, NULL);
+    gst_bin_add_many(GST_BIN(renderer_bin), balance, flip, sink, NULL);
 
-    LINK_ELEMENTS(upload, convert);
-    LINK_ELEMENTS(convert, balance);
-    LINK_ELEMENTS(balance, flip);
     LINK_ELEMENTS(flip, sink);
+    LINK_ELEMENTS(balance, flip);
 
-    sinkpad = gst_element_get_static_pad(upload, "sink");
+    sinkpad = gst_element_get_static_pad(balance, "sink");
     g_assert(sinkpad);
     ghostpad = gst_ghost_pad_new("sink", sinkpad);
     gst_pad_set_active(ghostpad, TRUE);
@@ -375,7 +370,6 @@ static GstCaps *owr_video_renderer_get_caps(OwrMediaRenderer *renderer)
         NULL);
 
     caps = gst_caps_new_empty_simple("video/x-raw");
-    gst_caps_set_features(caps, 0, gst_caps_features_new_any());
     if (width > 0)
         gst_caps_set_simple(caps, "width", G_TYPE_INT, width, NULL);
     if (height > 0)
