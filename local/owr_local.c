@@ -58,7 +58,7 @@ GST_DEBUG_CATEGORY_EXTERN(_owrlocal_debug);
 
 /* PRIVATE */
 
-static GList *get_test_sources(OwrMediaType types)
+GList *owr_get_test_sources(OwrMediaType types)
 {
     static GList *cached_sources = NULL;
     OwrLocalMediaSource *source;
@@ -131,7 +131,7 @@ void owr_get_capture_sources(OwrMediaType types, OwrCaptureSourcesCallback callb
         _owr_get_capture_devices(types, merger);
 
         g_closure_ref(merger);
-        sources = get_test_sources(types);
+        sources = owr_get_test_sources(types);
         _owr_utils_call_closure_with_list(merger, sources);
         g_list_free_full(sources, g_object_unref);
 

@@ -1,0 +1,13 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+datarootdir=${prefix}/share
+datadir=${datarootdir}
+includedir=${prefix}/include
+
+Name: libopenwebrtc-gst
+Description: libopenwebrtc-gst
+Version: 0.3.0
+Requires: openwebrtc-0.3 gstreamer-1.0
+Libs: -L${libdir} -lopenwebrtc_gst
+Cflags: -I${includedir}

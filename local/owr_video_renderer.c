@@ -34,6 +34,7 @@
 #endif
 #include "owr_video_renderer.h"
 
+#include <stdio.h>
 #include "owr_media_renderer_private.h"
 #include "owr_private.h"
 #include "owr_utils.h"
@@ -52,7 +53,7 @@
 GST_DEBUG_CATEGORY_EXTERN(_owrvideorenderer_debug);
 #define GST_CAT_DEFAULT _owrvideorenderer_debug
 
-#define VIDEO_SINK "glimagesink"
+#define VIDEO_SINK "xvimagesink"
 
 #define DEFAULT_WIDTH 0
 #define DEFAULT_HEIGHT 0
@@ -339,6 +340,7 @@ static GstElement *owr_video_renderer_get_element(OwrMediaRenderer *renderer, gu
     gst_element_add_pad(renderer_bin, ghostpad);
     gst_object_unref(sinkpad);
 
+    printf("renderer started\n");
     return renderer_bin;
 }
 

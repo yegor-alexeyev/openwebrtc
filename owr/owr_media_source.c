@@ -332,35 +332,29 @@ static GstElement *owr_media_source_request_source_default(OwrMediaSource *media
 
         features = gst_caps_get_features(caps, 0);
         if (gst_caps_features_contains(features, GST_CAPS_FEATURE_MEMORY_GL_MEMORY)) {
-            GstElement *glupload;
 
-            CREATE_ELEMENT_WITH_ID(glupload, "glupload", "source-glupload", source_id);
             CREATE_ELEMENT_WITH_ID(videoconvert, "glcolorconvert", "source-glcolorconvert", source_id);
             gst_bin_add_many(GST_BIN(source_bin),
-                    queue_pre, glupload, videoconvert, capsfilter, queue_post, NULL);
+                    queue_pre, videoconvert, capsfilter, queue_post, NULL);
 
             if (videorate) {
                 LINK_ELEMENTS(queue_pre, videorate);
-                LINK_ELEMENTS(videorate, glupload);
+                LINK_ELEMENTS(videorate, videoconvert);
             } else {
-                LINK_ELEMENTS(queue_pre, glupload);
+                LINK_ELEMENTS(queue_pre, videoconvert);
             }
-            LINK_ELEMENTS(glupload, videoconvert);
         } else {
-            GstElement *gldownload;
 
-            CREATE_ELEMENT_WITH_ID(gldownload, "gldownload", "source-gldownload", source_id);
             CREATE_ELEMENT_WITH_ID(videoscale,  "videoscale", "source-video-scale", source_id);
             CREATE_ELEMENT_WITH_ID(videoconvert, VIDEO_CONVERT, "source-video-convert", source_id);
             gst_bin_add_many(GST_BIN(source_bin),
-                    queue_pre, gldownload, videoscale, videoconvert, capsfilter, queue_post, NULL);
+                    queue_pre, videoscale, videoconvert, capsfilter, queue_post, NULL);
             if (videorate) {
                 LINK_ELEMENTS(queue_pre, videorate);
-                LINK_ELEMENTS(videorate, gldownload);
+                LINK_ELEMENTS(videorate, videoscale);
             } else {
-                LINK_ELEMENTS(queue_pre, gldownload);
+                LINK_ELEMENTS(queue_pre, videoscale);
             }
-            LINK_ELEMENTS(gldownload, videoscale);
             LINK_ELEMENTS(videoscale, videoconvert);
         }
         LINK_ELEMENTS(videoconvert, capsfilter);

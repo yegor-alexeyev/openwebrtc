@@ -409,6 +409,46 @@ static void on_caps(GstElement *source, GParamSpec *pspec, OwrMediaSource *media
     }
 }
 
+static void print_caps(const char* tag, gchar* name, const GstCaps* p_caps) {
+	gchar* description = gst_caps_to_string(p_caps);
+	printf("%s(%s):\n %s\n\n",tag, name, description);
+	g_free(description);
+}
+
+static void print_pad_caps(const char* tag, GstPad* pad) {
+	// here, you would setup a new pad link for the newly created pad
+	// sooo, now find that rtph264depay is needed and link them?
+	const GstCaps* p_caps = gst_pad_query_caps (pad, NULL);
+
+	gchar* name = gst_pad_get_name(pad);
+  print_caps(tag, name, p_caps);
+
+	g_free(name);
+
+}
+
+static void cb_new_rtspsrc_pad(GstElement *element,GstPad*pad,gpointer  data)
+{
+	GstElement *p_rtph264depay;
+
+  print_pad_caps("rtpsrc pad", pad);
+
+
+	p_rtph264depay = GST_ELEMENT(data);
+
+	gchar* name = gst_pad_get_name(pad);
+	// try to link the pads then ...
+	if(!gst_element_link_pads(element, name, p_rtph264depay, "sink"))
+	{
+			printf("Failed to link elements 3\n");
+	}
+
+	g_free(name);
+}
+
+
+
+
 /*
  * owr_local_media_source_get_pad
  *
@@ -571,25 +611,37 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
                 }
                 break;
             case OWR_SOURCE_TYPE_TEST: {
-                GstElement *src, *time;
+                GstElement *rtspsrc, *rtph264depay, *avdec;
                 GstPad *srcpad;
 
                 source = gst_bin_new("video-source");
 
-                CREATE_ELEMENT(src, "videotestsrc", "videotestsrc");
-                g_object_set(src, "is-live", TRUE, NULL);
-                gst_bin_add(GST_BIN(source), src);
+                CREATE_ELEMENT(rtspsrc, "rtspsrc", "rtspsrc");
+                g_object_set(rtspsrc, "location", "rtsp://pi:8554/test/", NULL);
+                gst_bin_add(GST_BIN(source), rtspsrc);
 
-                time = gst_element_factory_make("timeoverlay", "timeoverlay");
-                if (time) {
-                    g_object_set(time, "font-desc", "Sans 60", NULL);
-                    gst_bin_add(GST_BIN(source), time);
-                    gst_element_link(src, time);
-                    srcpad = gst_element_get_static_pad(time, "src");
-                } else
-                    srcpad = gst_element_get_static_pad(src, "src");
+                CREATE_ELEMENT(rtph264depay, "rtph264depay", "rtph264depay");
+                gst_bin_add(GST_BIN(source), rtph264depay);
 
-                gst_element_add_pad(source, gst_ghost_pad_new("src", srcpad));
+                g_signal_connect(rtspsrc, "pad-added", G_CALLBACK(cb_new_rtspsrc_pad),rtph264depay);
+
+
+                CREATE_ELEMENT(avdec, "avdec_h264", "avdec_h264");
+                gst_bin_add(GST_BIN(source), avdec);
+
+                if (!gst_element_link_pads(rtph264depay, "src", avdec, "sink"))
+                {
+                    printf("Failed to link elements 3\n");
+                }
+  
+
+                srcpad = gst_element_get_static_pad(avdec, "src");
+                print_pad_caps("avdec src caps", srcpad);
+
+                GstPad* ghost_pad = gst_ghost_pad_new("src", srcpad);
+                print_pad_caps("ghost src caps", ghost_pad);
+
+                gst_element_add_pad(source, ghost_pad);
                 gst_object_unref(srcpad);
 
                 break;
@@ -600,20 +652,32 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
                 goto done;
             }
 
-            /* First try to see if we can just get the format we want directly */
+            print_caps("passed caps", "caps", caps);
 
+            /* First try to see if we can just get the format we want directly */
             source_caps = gst_caps_new_empty();
 #if GST_CHECK_VERSION(1, 5, 0)
             gst_caps_foreach(caps, fix_video_caps_framerate, source_caps);
 #else
             _owr_gst_caps_foreach(caps, fix_video_caps_framerate, source_caps);
 #endif
+
+            print_caps("fixed passed caps", "source_caps", source_caps);
+
             /* Now see what the device can really produce */
-            srcpad = gst_element_get_static_pad(source, "src");
+            srcpad = gst_element_get_static_pad(source, "sorc");
+            print_pad_caps("bin_source_srcpad caps before change state to ready request", srcpad);
+
             gst_element_set_state(source, GST_STATE_READY);
+
+            print_pad_caps("bin_source_srcpad caps after change state request to ready", srcpad);
+
             device_caps = gst_pad_query_caps(srcpad, source_caps);
 
+            print_caps("bin_source_srcpad-caps*fixed-passed-caps", "device_caps", device_caps);
+
             if (gst_caps_is_empty(device_caps)) {
+                printf("EMPTYIIII\n");
                 /* Let's see if it works when we drop format constraints (which can be dealt with downsteram) */
                 GstCaps *tmp = source_caps;
                 source_caps = gst_caps_new_empty();
@@ -716,6 +780,8 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
     gst_object_unref(source_pipeline);
 
     source_element = OWR_MEDIA_SOURCE_CLASS(owr_local_media_source_parent_class)->request_source(media_source, caps);
+
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(source_pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "inner");
 
 done:
     return source_element;

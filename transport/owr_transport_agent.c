@@ -832,12 +832,19 @@ static void handle_new_send_source(OwrTransportAgent *transport_agent,
     stream_id = get_stream_id(transport_agent, OWR_SESSION(media_session));
     g_return_if_fail(stream_id);
 
+
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_before_link");
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_before_link");
+
     gst_bin_add(GST_BIN(transport_agent->priv->pipeline), src);
     if (!link_source_to_transport_bin(srcpad, transport_agent->priv->pipeline, transport_bin, media_type, codec_type, stream_id)) {
         gchar *name = "";
         g_object_get(send_source, "name", &name, NULL);
         GST_ERROR("Failed to link \"%s\" with transport bin", name);
     }
+
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_after_link");
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_after_link");
     gst_object_unref(srcpad);
 
     gst_element_sync_state_with_parent(src);
@@ -871,13 +878,18 @@ static void maybe_handle_new_send_source_with_payload(OwrTransportAgent *transpo
         value = _owr_value_table_add(event_data, "start_time", G_TYPE_INT64);
         g_value_set_int64(value, g_get_monotonic_time());
 
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_aafirst");
         handle_new_send_payload(transport_agent, media_session, payload);
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_a");
         handle_new_send_source(transport_agent, media_session, media_source, payload);
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_b");
 
         value = _owr_value_table_add(event_data, "end_time", G_TYPE_INT64);
         g_value_set_int64(value, g_get_monotonic_time());
         OWR_POST_STATS(media_session, SEND_PIPELINE_ADDED, event_data);
     }
+
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_c");
 
     if (payload)
         g_object_unref(payload);
@@ -2260,10 +2272,9 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
     g_warn_if_fail(sync_ok);
 
     if (media_type == OWR_MEDIA_TYPE_VIDEO) {
-        GstElement *gldownload, *flip, *queue = NULL, *encoder_capsfilter;
+        GstElement *flip, *queue = NULL, *encoder_capsfilter;
 
         name = g_strdup_printf("send-input-video-gldownload-%u", stream_id);
-        gldownload = gst_element_factory_make("gldownload", name);
         g_free(name);
 
         name = g_strdup_printf("send-input-video-flip-%u", stream_id);
@@ -2297,12 +2308,12 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
         g_object_set(encoder_capsfilter, "caps", caps, NULL);
         gst_caps_unref(caps);
 
-        gst_bin_add_many(GST_BIN(send_input_bin), gldownload, flip, queue, encoder, encoder_capsfilter, payloader, NULL);
+        gst_bin_add_many(GST_BIN(send_input_bin), flip, queue, encoder, encoder_capsfilter, payloader, NULL);
         if (parser) {
             gst_bin_add(GST_BIN(send_input_bin), parser);
-            link_ok &= gst_element_link_many(gldownload, flip, queue, encoder, parser, encoder_capsfilter, payloader, NULL);
+            link_ok &= gst_element_link_many(flip, queue, encoder, parser, encoder_capsfilter, payloader, NULL);
         } else
-            link_ok &= gst_element_link_many(gldownload, flip, queue, encoder, encoder_capsfilter, payloader, NULL);
+            link_ok &= gst_element_link_many(flip, queue, encoder, encoder_capsfilter, payloader, NULL);
 
         link_ok &= gst_element_link_many(payloader, rtp_capsfilter, NULL);
 
@@ -2316,10 +2327,9 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
         sync_ok &= gst_element_sync_state_with_parent(encoder);
         sync_ok &= gst_element_sync_state_with_parent(queue);
         sync_ok &= gst_element_sync_state_with_parent(flip);
-        sync_ok &= gst_element_sync_state_with_parent(gldownload);
 
         name = g_strdup_printf("video_sink_%u_%u", OWR_CODEC_TYPE_NONE, stream_id);
-        sink_pad = gst_element_get_static_pad(gldownload, "sink");
+        sink_pad = gst_element_get_static_pad(flip, "sink");
         add_pads_to_bin_and_transport_bin(sink_pad, send_input_bin,
             transport_agent->priv->transport_bin, name);
         gst_object_unref(sink_pad);

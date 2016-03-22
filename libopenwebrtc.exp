@@ -1,3 +1,4 @@
+owr_get_test_sources
 owr_adaptation_type_get_type
 owr_audio_payload_get_type
 owr_audio_payload_new

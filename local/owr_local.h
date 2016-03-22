@@ -40,6 +40,7 @@ G_BEGIN_DECLS
 
 typedef void (*OwrCaptureSourcesCallback) (GList *sources, gpointer user_data);
 
+GList *owr_get_test_sources(OwrMediaType types);
 void owr_get_capture_sources(OwrMediaType types, OwrCaptureSourcesCallback callback, gpointer user_data);
 
 G_END_DECLS
