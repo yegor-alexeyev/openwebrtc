@@ -642,6 +642,61 @@ GstCaps * _owr_payload_create_rtp_caps(OwrPayload *payload)
     return caps;
 }
 
+GstCaps * _owr_payload_create_x264_caps(OwrPayload *payload)
+{
+    OwrPayloadPrivate *priv;
+    OwrMediaType media_type;
+    GstCaps *caps = NULL;
+    guint channels = 0;
+    guint width = 0, height = 0;
+    gdouble framerate = 0.0;
+    gint fps_n = 0, fps_d = 1;
+
+    g_return_val_if_fail(payload, NULL);
+    priv = payload->priv;
+
+    g_object_get(payload, "media-type", &media_type, NULL);
+
+    switch (media_type) {
+    case OWR_MEDIA_TYPE_AUDIO:
+        if (OWR_IS_AUDIO_PAYLOAD(payload))
+            g_object_get(OWR_AUDIO_PAYLOAD(payload), "channels", &channels, NULL);
+        caps = gst_caps_new_simple("audio/x-raw",
+            "rate", G_TYPE_INT, priv->clock_rate,
+            NULL);
+        if (channels > 0) {
+            gst_caps_set_simple(caps,
+                "channels", G_TYPE_INT, channels,
+                NULL);
+        }
+        break;
+
+    case OWR_MEDIA_TYPE_VIDEO:
+        if (OWR_IS_VIDEO_PAYLOAD(payload)) {
+            g_object_get(OWR_VIDEO_PAYLOAD(payload),
+                "width", &width,
+                "height", &height,
+                "framerate", &framerate,
+                NULL);
+        }
+        caps = gst_caps_new_empty_simple("video/x-h264");
+#ifdef __APPLE__
+        if (priv->codec_type == OWR_CODEC_TYPE_H264)
+          gst_caps_set_features(caps, 0, gst_caps_features_new_any());
+#endif
+        gst_caps_set_simple(caps, "width", G_TYPE_INT, width > 0 ? width : LIMITED_WIDTH, NULL);
+        gst_caps_set_simple(caps, "height", G_TYPE_INT, height > 0 ? height : LIMITED_HEIGHT, NULL);
+
+        framerate = framerate > 0.0 ? framerate : LIMITED_FRAMERATE;
+        gst_util_double_to_fraction(framerate, &fps_n, &fps_d);
+        gst_caps_set_simple(caps, "framerate", GST_TYPE_FRACTION, fps_n, fps_d, NULL);
+        break;
+    default:
+        g_return_val_if_reached(NULL);
+    }
+
+    return caps;
+}
 
 GstCaps * _owr_payload_create_raw_caps(OwrPayload *payload)
 {

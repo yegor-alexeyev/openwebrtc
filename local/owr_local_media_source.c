@@ -611,7 +611,7 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
                 }
                 break;
             case OWR_SOURCE_TYPE_TEST: {
-                GstElement *rtspsrc, *rtph264depay, *avdec;
+                GstElement *rtspsrc, *rtph264depay;
                 GstPad *srcpad;
 
                 source = gst_bin_new("video-source");
@@ -626,17 +626,9 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
                 g_signal_connect(rtspsrc, "pad-added", G_CALLBACK(cb_new_rtspsrc_pad),rtph264depay);
 
 
-                CREATE_ELEMENT(avdec, "avdec_h264", "avdec_h264");
-                gst_bin_add(GST_BIN(source), avdec);
 
-                if (!gst_element_link_pads(rtph264depay, "src", avdec, "sink"))
-                {
-                    printf("Failed to link elements 3\n");
-                }
-  
-
-                srcpad = gst_element_get_static_pad(avdec, "src");
-                print_pad_caps("avdec src caps", srcpad);
+                srcpad = gst_element_get_static_pad(rtph264depay, "src");
+                print_pad_caps("rtph264depay src caps", srcpad);
 
                 GstPad* ghost_pad = gst_ghost_pad_new("src", srcpad);
                 print_pad_caps("ghost src caps", ghost_pad);
@@ -665,7 +657,7 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
             print_caps("fixed passed caps", "source_caps", source_caps);
 
             /* Now see what the device can really produce */
-            srcpad = gst_element_get_static_pad(source, "sorc");
+            srcpad = gst_element_get_static_pad(source, "src");
             print_pad_caps("bin_source_srcpad caps before change state to ready request", srcpad);
 
             gst_element_set_state(source, GST_STATE_READY);

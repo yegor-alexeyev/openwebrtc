@@ -821,7 +821,7 @@ static void handle_new_send_source(OwrTransportAgent *transport_agent,
     g_object_get(send_payload, "codec-type", &codec_type, NULL);
     */
 
-    caps = _owr_payload_create_raw_caps(send_payload);
+    caps = _owr_payload_create_x264_caps(send_payload);
     src = _owr_media_source_request_source(send_source, caps);
     g_assert(src);
     gst_caps_unref(caps);
@@ -2271,14 +2271,10 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
         g_object_set(queue, "max-size-buffers", 3, "max-size-bytes", 0,
             "max-size-time", G_GUINT64_CONSTANT(0), NULL);
 
-        encoder = _owr_payload_create_encoder(payload);
         parser = _owr_payload_create_parser(payload);
         payloader = _owr_payload_create_payload_packetizer(payload);
-        g_warn_if_fail(payloader && encoder);
+        g_warn_if_fail(payloader);
 
-        encoder_sink_pad = gst_element_get_static_pad(encoder, "sink");
-        g_signal_connect(encoder_sink_pad, "notify::caps", G_CALLBACK(on_caps), OWR_SESSION(media_session));
-        gst_object_unref(encoder_sink_pad);
 
         name = g_strdup_printf("send-input-video-encoder-capsfilter-%u", stream_id);
         encoder_capsfilter = gst_element_factory_make("capsfilter", name);
@@ -2287,12 +2283,12 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
         g_object_set(encoder_capsfilter, "caps", caps, NULL);
         gst_caps_unref(caps);
 
-        gst_bin_add_many(GST_BIN(send_input_bin), queue, encoder, encoder_capsfilter, payloader, NULL);
+        gst_bin_add_many(GST_BIN(send_input_bin), queue, encoder_capsfilter, payloader, NULL);
         if (parser) {
             gst_bin_add(GST_BIN(send_input_bin), parser);
-            link_ok &= gst_element_link_many(queue, encoder, parser, encoder_capsfilter, payloader, NULL);
+            link_ok &= gst_element_link_many(queue, parser, encoder_capsfilter, payloader, NULL);
         } else
-            link_ok &= gst_element_link_many(queue, encoder, encoder_capsfilter, payloader, NULL);
+            link_ok &= gst_element_link_many(queue, encoder_capsfilter, payloader, NULL);
 
         link_ok &= gst_element_link_many(payloader, rtp_capsfilter, NULL);
 
@@ -2303,7 +2299,6 @@ static void handle_new_send_payload(OwrTransportAgent *transport_agent, OwrMedia
         if (parser)
             sync_ok &= gst_element_sync_state_with_parent(parser);
         sync_ok &= gst_element_sync_state_with_parent(encoder_capsfilter);
-        sync_ok &= gst_element_sync_state_with_parent(encoder);
         sync_ok &= gst_element_sync_state_with_parent(queue);
 
         name = g_strdup_printf("video_sink_%u_%u", OWR_CODEC_TYPE_NONE, stream_id);

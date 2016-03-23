@@ -311,7 +311,6 @@ static GstElement *owr_media_source_request_source_default(OwrMediaSource *media
         }
     case OWR_MEDIA_TYPE_VIDEO:
         {
-        GstElement *videorate = NULL, *videoscale = NULL, *videoconvert;
         GstStructure *s;
         GstCapsFeatures *features;
 
@@ -322,42 +321,24 @@ static GstElement *owr_media_source_request_source_default(OwrMediaSource *media
             gst_structure_get_fraction(s, "framerate", &fps_n, &fps_d);
             g_assert(fps_d);
 
-            CREATE_ELEMENT_WITH_ID(videorate, "videorate", "source-video-rate", source_id);
-            g_object_set(videorate, "drop-only", TRUE, "max-rate", fps_n / fps_d, NULL);
 
             gst_structure_remove_field(s, "framerate");
-            gst_bin_add(GST_BIN(source_bin), videorate);
         }
         g_object_set(capsfilter, "caps", caps, NULL);
 
         features = gst_caps_get_features(caps, 0);
         if (gst_caps_features_contains(features, GST_CAPS_FEATURE_MEMORY_GL_MEMORY)) {
 
-            CREATE_ELEMENT_WITH_ID(videoconvert, "glcolorconvert", "source-glcolorconvert", source_id);
             gst_bin_add_many(GST_BIN(source_bin),
-                    queue_pre, videoconvert, capsfilter, queue_post, NULL);
+                    queue_pre, capsfilter, queue_post, NULL);
 
-            if (videorate) {
-                LINK_ELEMENTS(queue_pre, videorate);
-                LINK_ELEMENTS(videorate, videoconvert);
-            } else {
-                LINK_ELEMENTS(queue_pre, videoconvert);
-            }
+            LINK_ELEMENTS(queue_pre, capsfilter);
         } else {
 
-            CREATE_ELEMENT_WITH_ID(videoscale,  "videoscale", "source-video-scale", source_id);
-            CREATE_ELEMENT_WITH_ID(videoconvert, VIDEO_CONVERT, "source-video-convert", source_id);
             gst_bin_add_many(GST_BIN(source_bin),
-                    queue_pre, videoscale, videoconvert, capsfilter, queue_post, NULL);
-            if (videorate) {
-                LINK_ELEMENTS(queue_pre, videorate);
-                LINK_ELEMENTS(videorate, videoscale);
-            } else {
-                LINK_ELEMENTS(queue_pre, videoscale);
-            }
-            LINK_ELEMENTS(videoscale, videoconvert);
+                    queue_pre, capsfilter, queue_post, NULL);
+            LINK_ELEMENTS(queue_pre, capsfilter);
         }
-        LINK_ELEMENTS(videoconvert, capsfilter);
         LINK_ELEMENTS(capsfilter, queue_post);
 
         break;
