@@ -405,7 +405,7 @@ OwrCandidate * owr_candidate_new_from_candidate_attribute_string(const gchar* ca
   gchar* candidate_sdp_line = g_strconcat("a=", candidate_attribute_string, NULL);
 
 
-  NiceCandidate* nice_candidate = nice_agent_parse_remote_candidate_sdp((NiceAgent*)nice_agent_dummy_instance, 0, candidate_sdp_line);
+  NiceCandidate* nice_candidate = nice_agent_parse_remote_candidate_sdp((NiceAgent*)nice_agent_dummy_instance, 1, candidate_sdp_line);
   g_free(nice_agent_dummy_instance);
   g_free(candidate_sdp_line);
 
