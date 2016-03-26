@@ -397,8 +397,16 @@ OwrCandidate * _owr_candidate_new_from_nice_candidate(NiceCandidate *nice_candid
 }
 
 OwrCandidate * owr_candidate_new_from_candidate_attribute_string(const gchar* candidate_attribute_string) {
+  GTypeInsntance* nice_agent_dummy_instance = g_type_create_instance(NICE_TYPE_AGENT);
+  if (nice_agent_dummy_instance == NULL) {
+    return NULL;
+  }
+
   gchar* candidate_sdp_line = g_strconcat("a=", candidate_attribute_string, NULL);
-  NiceCandidate* nice_candidate = nice_agent_parse_remote_candidate_sdp(NULL, 0, candidate_sdp_line);
+
+
+  NiceCandidate* nice_candidate = nice_agent_parse_remote_candidate_sdp(nice_agent_dummy_instance, 0, candidate_sdp_line);
+  g_free(nice_agent_dummy_instance);
   g_free(candidate_sdp_line);
 
   if (nice_candidate == NULL) {
