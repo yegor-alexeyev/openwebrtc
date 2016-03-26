@@ -91,6 +91,8 @@ GType owr_candidate_get_type(void) G_GNUC_CONST;
 
 OwrCandidate * owr_candidate_new(OwrCandidateType type, OwrComponentType component_type);
 
+OwrCandidate * owr_candidate_new_from_candidate_attribute_string(const gchar* candidate_attribute_string);
+
 G_END_DECLS
 
 #endif /* __OWR_CANDIDATE_H__ */

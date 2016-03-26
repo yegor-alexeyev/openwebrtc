@@ -305,6 +305,8 @@ OwrCandidate * owr_candidate_new(OwrCandidateType type, OwrComponentType compone
     return g_object_new(OWR_TYPE_CANDIDATE, "type", type, "component_type", component_type, NULL);
 }
 
+
+
 OwrCandidate * _owr_candidate_new_from_nice_candidate(NiceCandidate *nice_candidate)
 {
     OwrCandidate *owr_candidate;
@@ -393,6 +395,24 @@ OwrCandidate * _owr_candidate_new_from_nice_candidate(NiceCandidate *nice_candid
 
     return owr_candidate;
 }
+
+OwrCandidate * owr_candidate_new_from_candidate_attribute_string(const gchar* candidate_attribute_string) {
+  const gchar* candidate_sdp_line = g_strconcat("a=", candidate_attribute_string);
+  NiceCandidate* nice_candidate = nice_agent_parse_remote_candidate_sdp(NULL, 0, candidate_sdp_line);
+  g_free(candidate_sdp_line);
+
+  if (nice_candidate == NULL) {
+    return NULL;
+  }
+
+  OwrCandidate* owr_candidate =  _owr_candidate_new_from_nice_candidate(nice_candidate);
+
+  nice_candidate_free(nice_candidate);
+
+  return owr_candidate;
+
+}
+
 
 NiceCandidate * _owr_candidate_to_nice_candidate(OwrCandidate *candidate)
 {

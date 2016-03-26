@@ -11,6 +11,7 @@ owr_bus_remove_message_origin
 owr_bus_set_message_callback
 owr_candidate_get_type
 owr_candidate_new
+owr_candidate_new_from_candidate_attribute_string
 owr_candidate_type_get_type
 owr_codec_type_get_type
 owr_component_type_get_type
