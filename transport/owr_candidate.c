@@ -379,13 +379,15 @@ OwrCandidate * _owr_candidate_new_from_nice_candidate(NiceCandidate *nice_candid
     port = nice_address_get_port(&nice_candidate->addr);
     g_object_set(G_OBJECT(owr_candidate), "port", port, NULL);
 
-    address = g_new0(gchar, NICE_ADDRESS_STRING_LEN);
-    nice_address_to_string(&nice_candidate->base_addr, address);
-    g_object_set(G_OBJECT(owr_candidate), "base-address", address, NULL);
-    g_free(address);
+    if (nice_address_is_valid(&nice_candidate->base_addr)) {
+        address = g_new0(gchar, NICE_ADDRESS_STRING_LEN);
+        nice_address_to_string(&nice_candidate->base_addr, address);
+        g_object_set(G_OBJECT(owr_candidate), "base-address", address, NULL);
+        g_free(address);
 
-    port = nice_address_get_port(&nice_candidate->base_addr);
-    g_object_set(G_OBJECT(owr_candidate), "base-port", port, NULL);
+        port = nice_address_get_port(&nice_candidate->base_addr);
+        g_object_set(G_OBJECT(owr_candidate), "base-port", port, NULL);
+    }
 
     g_object_set(G_OBJECT(owr_candidate), "priority", nice_candidate->priority, NULL);
     g_object_set(G_OBJECT(owr_candidate), "foundation", nice_candidate->foundation, NULL);
