@@ -3048,12 +3048,28 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
         for (; has_packet; has_packet = gst_rtcp_packet_move_to_next(&rtcp_packet)) {
             packet_type = gst_rtcp_packet_get_type(&rtcp_packet);
             print_rtcp_type(session, session_id, packet_type);
+
+
+            
+
             if (packet_type == GST_RTCP_TYPE_PSFB || packet_type == GST_RTCP_TYPE_RTPFB) {
                 print_rtcp_feedback_type(session, session_id, gst_rtcp_packet_fb_get_type(&rtcp_packet),
                     gst_rtcp_packet_fb_get_media_ssrc(&rtcp_packet), packet_type,
                     gst_rtcp_packet_fb_get_fci(&rtcp_packet), TRUE);
                 break;
             }
+            guint8* fci = gst_rtcp_packet_fb_get_fci(&rtcp_packet);
+            guint16 fci_length = gst_rtcp_packet_fb_get_fci_length(&rtcp_packet);
+
+            printf("packet fci:");
+            for (int i = 0; i < fci_lingth; i++) {
+              if (isprint(fci[i])) {
+                printf(" %c", fci[i]);
+              } else {
+                printf(" %02x", fci[i]);
+              }
+            }
+            printf("\n");
         }
         gst_rtcp_buffer_unmap(&rtcp_buffer);
     }
