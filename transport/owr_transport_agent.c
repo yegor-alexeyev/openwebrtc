@@ -73,6 +73,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+
 
 GST_DEBUG_CATEGORY_EXTERN(_owrtransportagent_debug);
 GST_DEBUG_CATEGORY_EXTERN(_owrsession_debug);
@@ -3062,7 +3064,7 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
             guint16 fci_length = gst_rtcp_packet_fb_get_fci_length(&rtcp_packet);
 
             printf("packet fci:");
-            for (int i = 0; i < fci_lingth; i++) {
+            for (int i = 0; i < fci_length; i++) {
               if (isprint(fci[i])) {
                 printf(" %c", fci[i]);
               } else {
