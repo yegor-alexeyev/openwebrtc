@@ -3062,7 +3062,7 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
                 guint8* fci = gst_rtcp_packet_fb_get_fci(&rtcp_packet);
                 guint16 fci_length = gst_rtcp_packet_fb_get_fci_length(&rtcp_packet);
 
-                printf("packet fci:");
+                printf("packet fci(%d):", fci_length);
                 for (int i = 0; i < fci_length; i++) {
                   if (isprint(fci[i])) {
                     printf(" %c", fci[i]);
