@@ -3051,6 +3051,25 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
             packet_type = gst_rtcp_packet_get_type(&rtcp_packet);
             print_rtcp_type(session, session_id, packet_type);
 
+            if (packet_type == GST_RTCP_TYPE_RR ||
+                packet_type == GST_RTCP_TYPE_SR) {
+                const guint rb_count = gst_rtcp_packet_get_rb_count(&rtcp_packet);
+								printf("%d report blocks\n");
+                for (size_t i = 0; i < rb_count; i++) {
+										guint32 ssrc;
+										guint8 fractionlost;
+										gint32 packetslost;
+										guint32 exthighestseq;
+										guint32 jitter;
+										guint32 lsr;
+										guint32 dlsr;
+					
+                    gst_rtcp_packet_get_rb(rtcp_packet, i, &ssrc, &fractionlost, &packetslost, &exthighestseq, &jitter, &lsr, &dlsr);
+
+
+										printf("%u: %.3f %u %u %u", ssrc, (double)(fractionlost/256.0), packetslost, exthighestseq, jitter);
+								}
+						}
 
             
 
