@@ -3067,7 +3067,7 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
                     gst_rtcp_packet_get_rb(&rtcp_packet, i, &ssrc, &fractionlost, &packetslost, &exthighestseq, &jitter, &lsr, &dlsr);
 
 
-										printf("%u: %.3f %u %u %u", ssrc, (double)(fractionlost/256.0), packetslost, exthighestseq, jitter);
+										printf("%u: %.3f %u %u %u\n", ssrc, (double)(fractionlost/256.0), packetslost, exthighestseq, jitter);
 								}
 						}
 
