@@ -74,6 +74,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 
 GST_DEBUG_CATEGORY_EXTERN(_owrtransportagent_debug);
@@ -2876,6 +2877,7 @@ static void print_rtcp_feedback_type(GObject *session, guint session_id,
         case GST_RTCP_PSFB_TYPE_PLI:
             GST_CAT_INFO_OBJECT(_owrsession_debug, session, "Session %u, %s RTCP feedback for %u: Picture Loss Indication\n",
                 session_id, is_received ? "Received" : "Sent", media_ssrc);
+            system("/home/rtsp/generate_keyframe.sh &");
             break;
         case GST_RTCP_PSFB_TYPE_SLI:
             GST_CAT_INFO_OBJECT(_owrsession_debug, session, "Session %u, %s RTCP feedback for %u: Slice Loss Indication\n",
