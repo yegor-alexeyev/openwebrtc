@@ -3054,7 +3054,7 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
             if (packet_type == GST_RTCP_TYPE_RR ||
                 packet_type == GST_RTCP_TYPE_SR) {
                 const guint rb_count = gst_rtcp_packet_get_rb_count(&rtcp_packet);
-								printf("%u report blocks\n", rb_count);
+                g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"%u report blocks\n", rb_count);
                 for (size_t i = 0; i < rb_count; i++) {
 										guint32 ssrc;
 										guint8 fractionlost;
@@ -3066,8 +3066,7 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
 					
                     gst_rtcp_packet_get_rb(&rtcp_packet, i, &ssrc, &fractionlost, &packetslost, &exthighestseq, &jitter, &lsr, &dlsr);
 
-
-										printf("%u: %.3f %u %u %u\n", ssrc, (double)(fractionlost/256.0), packetslost, exthighestseq, jitter);
+                    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "rb ssrc %u: %.3f %u %u %u\n", ssrc, (double)(fractionlost/256.0), packetslost, exthighestseq, jitter);
 								}
 						}
 
@@ -3081,15 +3080,15 @@ static void on_receiving_rtcp(GObject *session, GstBuffer *buffer,
                 guint8* fci = gst_rtcp_packet_fb_get_fci(&rtcp_packet);
                 guint16 fci_length = gst_rtcp_packet_fb_get_fci_length(&rtcp_packet);
 
-                printf("packet fci(%d):", fci_length);
+                g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"packet fci(%d):", fci_length);
                 for (int i = 0; i < fci_length; i++) {
                   if (isprint(fci[i])) {
-                    printf(" %c", fci[i]);
+                    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG," %c", fci[i]);
                   } else {
-                    printf(" %02x", fci[i]);
+                    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG," %02x", fci[i]);
                   }
                 }
-                printf("\n");
+                g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"\n");
 
 //                break;
             }
