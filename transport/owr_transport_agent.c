@@ -836,8 +836,8 @@ static void handle_new_send_source(OwrTransportAgent *transport_agent,
     g_return_if_fail(stream_id);
 
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_before_link");
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_before_link");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_before_link");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_before_link");
 
     gst_bin_add(GST_BIN(transport_agent->priv->pipeline), src);
     if (!link_source_to_transport_bin(srcpad, transport_agent->priv->pipeline, transport_bin, media_type, codec_type, stream_id)) {
@@ -846,8 +846,8 @@ static void handle_new_send_source(OwrTransportAgent *transport_agent,
         GST_ERROR("Failed to link \"%s\" with transport bin", name);
     }
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_after_link");
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_after_link");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(src), GST_DEBUG_GRAPH_SHOW_ALL, "source_after_link");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_bin), GST_DEBUG_GRAPH_SHOW_ALL, "transport_after_link");
     gst_object_unref(srcpad);
 
     gst_element_sync_state_with_parent(src);
@@ -881,18 +881,19 @@ static void maybe_handle_new_send_source_with_payload(OwrTransportAgent *transpo
         value = _owr_value_table_add(event_data, "start_time", G_TYPE_INT64);
         g_value_set_int64(value, g_get_monotonic_time());
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_aafirst");
+
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_aafirst");
         handle_new_send_payload(transport_agent, media_session, payload);
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_a");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_a");
         handle_new_send_source(transport_agent, media_session, media_source, payload);
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_b");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_b");
 
         value = _owr_value_table_add(event_data, "end_time", G_TYPE_INT64);
         g_value_set_int64(value, g_get_monotonic_time());
         OWR_POST_STATS(media_session, SEND_PIPELINE_ADDED, event_data);
     }
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_c");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transport_agent->priv->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "maybe_handle_new_send_source_with_payload_c");
 
     if (payload)
         g_object_unref(payload);

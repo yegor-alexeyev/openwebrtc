@@ -773,7 +773,7 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
 
     source_element = OWR_MEDIA_SOURCE_CLASS(owr_local_media_source_parent_class)->request_source(media_source, caps);
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(source_pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "inner");
+//    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(source_pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "inner");
 
 done:
     return source_element;
