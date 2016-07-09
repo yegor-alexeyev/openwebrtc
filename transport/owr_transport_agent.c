@@ -4194,6 +4194,14 @@ gchar * owr_transport_agent_get_dot_data(OwrTransportAgent *transport_agent)
 #endif
 }
 
+void get_local_credentials(OwrTransportAgent *transport_agent, OwrSession *session, gchar **ufrag, gchar **pwd)
+{
+    const guint stream_id = get_stream_id(transport_agent, session);
+
+    const gboolean result = nice_agent_get_local_credentials (transport_agent->priv->nice_agent, stream_id, ufrag, pwd);
+    g_assert(result);
+}
+
 
 static void on_feedback_rtcp(GObject *session, guint type, guint fbtype, guint sender_ssrc,
     guint media_ssrc, GstBuffer *fci, OwrTransportAgent *transport_agent)
