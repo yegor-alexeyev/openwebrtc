@@ -2121,7 +2121,7 @@ on_dtls_enc_key_set(GstElement *dtls_srtp_enc, AgentAndSessionIdPair *data)
     g_object_unref(session);
 }
 
-static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session)
+guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session)
 {
     GHashTableIter iter;
     OwrSession *s;
