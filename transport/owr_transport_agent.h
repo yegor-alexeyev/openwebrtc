@@ -76,7 +76,6 @@ void owr_transport_agent_add_local_address(OwrTransportAgent *transport_agent, c
 void owr_transport_agent_set_local_port_range(OwrTransportAgent *transport_agent, guint min_port, guint max_port);
 void owr_transport_agent_add_session(OwrTransportAgent *agent, OwrSession *session);
 gchar * owr_transport_agent_get_dot_data(OwrTransportAgent *transport_agent);
-guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session);
 
 G_END_DECLS
 
