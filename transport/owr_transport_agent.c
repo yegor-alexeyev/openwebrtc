@@ -199,7 +199,6 @@ static void owr_transport_agent_get_property(GObject *object, guint property_id,
 static void add_helper_server_info(GResolver *resolver, GAsyncResult *result, GHashTable *info);
 static void update_helper_servers(OwrTransportAgent *transport_agent, guint stream_id);
 static gboolean add_session(GHashTable *args);
-static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session);
 static OwrSession * get_session(OwrTransportAgent *transport_agent, guint stream_id);
 static void prepare_transport_bin_send_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
 static void prepare_transport_bin_receive_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
