@@ -4194,7 +4194,7 @@ gchar * owr_transport_agent_get_dot_data(OwrTransportAgent *transport_agent)
 #endif
 }
 
-void get_local_credentials(OwrTransportAgent *transport_agent, OwrSession *session, gchar **ufrag, gchar **pwd)
+void owr_transport_agent_get_local_credentials(OwrTransportAgent *transport_agent, OwrSession *session, gchar **ufrag, gchar **pwd)
 {
     const guint stream_id = get_stream_id(transport_agent, session);
 
