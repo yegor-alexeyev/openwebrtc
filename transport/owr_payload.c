@@ -615,6 +615,7 @@ GstCaps * _owr_payload_create_rtp_caps(OwrPayload *payload)
         "encoding-name", G_TYPE_STRING, encoding_name,
         "payload", G_TYPE_INT, priv->payload_type,
         "clock-rate", G_TYPE_INT, priv->clock_rate,
+        "rtcp-fb-nack-pli", G_TYPE_INT, 1,
         NULL);
 
     g_object_get(payload, "media-type", &media_type, NULL);
