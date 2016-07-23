@@ -447,11 +447,14 @@ static void cb_new_rtspsrc_pad(GstElement *element,GstPad*pad,gpointer  data)
 }
 
 gboolean
-cb_select_stream (void *,
-               guint       ,
+cb_select_stream (void *rtspsrc,
+               guint       num,
                GstCaps    *caps,
-               gpointer    )
+               gpointer    user_data)
 {
+  (void)(rtspsrc);
+  (void)(num);
+  (void)(user_data);
   gst_caps_set_simple(caps, "rtcp-fb-nack-pli", G_TYPE_INT, 1, NULL);
 }
 
