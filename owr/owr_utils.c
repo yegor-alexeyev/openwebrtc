@@ -195,7 +195,7 @@ void _owr_deep_notify(GObject *object, GstObject *orig,
         else
             str = gst_value_serialize(&value);
 
-        if (g_strstr(GST_OBJECT_NAME(orig), "local-video-test-source-bin") != NULL) {
+        if (g_strrstr(GST_OBJECT_NAME(orig), "local-video-test-source-bin") != NULL) {
           GST_INFO_OBJECT(orig, "foundsome\n");
         }
         GST_INFO_OBJECT(object, "%s%s = %s\n", path, pspec->name, str);
