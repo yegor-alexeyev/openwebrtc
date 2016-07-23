@@ -446,7 +446,14 @@ static void cb_new_rtspsrc_pad(GstElement *element,GstPad*pad,gpointer  data)
 	g_free(name);
 }
 
-
+gboolean
+cb_select_stream (GstRTSPSrc *rtspsrc,
+               guint       num,
+               GstCaps    *caps,
+               gpointer    user_data)
+{
+  gst_caps_set_simple(caps, "rtcp-fb-nack-pli", G_TYPE_INT, 1, NULL);
+}
 
 
 /*
@@ -623,6 +630,7 @@ static GstElement *owr_local_media_source_request_source(OwrMediaSource *media_s
                 CREATE_ELEMENT(rtph264depay, "rtph264depay", "rtph264depay");
                 gst_bin_add(GST_BIN(source), rtph264depay);
 
+                g_signal_connect(rtspsrc, "select-stream", G_CALLBACK(cb_select_stream),NULL);
                 g_signal_connect(rtspsrc, "pad-added", G_CALLBACK(cb_new_rtspsrc_pad),rtph264depay);
 
 
