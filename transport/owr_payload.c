@@ -687,6 +687,7 @@ GstCaps * _owr_payload_create_x264_caps(OwrPayload *payload)
         gst_caps_set_simple(caps, "width", G_TYPE_INT, width > 0 ? width : LIMITED_WIDTH, NULL);
         gst_caps_set_simple(caps, "height", G_TYPE_INT, height > 0 ? height : LIMITED_HEIGHT, NULL);
         gst_caps_set_simple(caps, "rtcp-fb-nack-pli", G_TYPE_INT, 1, NULL);
+        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "NACK-PLI capability set");
 
         framerate = framerate > 0.0 ? framerate : LIMITED_FRAMERATE;
         gst_util_double_to_fraction(framerate, &fps_n, &fps_d);
