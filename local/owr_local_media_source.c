@@ -431,8 +431,13 @@ static void cb_new_rtspsrc_pad(GstElement *element,GstPad*pad,gpointer  data)
 {
 	GstElement *p_rtph264depay;
 
-  print_pad_caps("rtpsrc pad", pad);
+  print_pad_caps("before rtpsrc pad", pad);
 
+  GstCaps* caps;
+  g_object_get(pad, "caps", &caps, NULL);
+
+  gst_caps_set_simple(caps, "rtcp-fb-nack-pli", G_TYPE_INT, 1, NULL);
+  print_pad_caps("after rtpsrc pad", pad);
 
 	p_rtph264depay = GST_ELEMENT(data);
 
