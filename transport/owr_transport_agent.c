@@ -2878,10 +2878,6 @@ static void print_rtcp_feedback_type(GObject *session, guint session_id,
         case GST_RTCP_PSFB_TYPE_PLI:
             GST_CAT_INFO_OBJECT(_owrsession_debug, session, "Session %u, %s RTCP feedback for %u: Picture Loss Indication\n",
                 session_id, is_received ? "Received" : "Sent", media_ssrc);
-            int n = system("/home/rtsp/generate_keyframe.sh &");
-            if (n != 0) {
-                g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "PLI handler returned non-success: %d\n", n);
-            }
             break;
         case GST_RTCP_PSFB_TYPE_SLI:
             GST_CAT_INFO_OBJECT(_owrsession_debug, session, "Session %u, %s RTCP feedback for %u: Slice Loss Indication\n",
