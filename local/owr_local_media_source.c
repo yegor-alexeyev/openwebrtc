@@ -447,7 +447,7 @@ static void cb_new_rtspsrc_pad(GstElement *element,GstPad*pad,gpointer  data)
 }
 
 gboolean
-cb_select_stream (void *rtspsrc,
+cb_select_stream (GstRTSPSrc *rtspsrc,
                guint       num,
                GstCaps    *caps,
                gpointer    user_data)
