@@ -456,7 +456,6 @@ cb_select_stream (void *rtspsrc,
   (void)(num);
   (void)(user_data);
   gst_caps_set_simple(caps, "rtcp-fb-nack-pli", G_TYPE_INT, 1, NULL);
-  return true;
 }
 
 
