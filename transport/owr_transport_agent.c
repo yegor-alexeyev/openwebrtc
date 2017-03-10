@@ -221,7 +221,6 @@ static void setup_audio_receive_elements(GstPad *new_pad, guint32 session_id, Ow
 static GstCaps * on_rtpbin_request_pt_map(GstElement *rtpbin, guint session_id, guint pt, OwrTransportAgent *agent);
 static GstElement * on_rtpbin_request_aux_sender(GstElement *rtpbin, guint session_id, OwrTransportAgent *transport_agent);
 static GstElement * on_rtpbin_request_aux_receiver(GstElement *rtpbin, guint session_id, OwrTransportAgent *transport_agent);
-static void on_dtls_enc_key_set(GstElement *dtls_srtp_enc, AgentAndSessionIdPair *data);
 static void on_new_selected_pair(NiceAgent *nice_agent,
     guint stream_id, guint component_id,
     NiceCandidate *lcandidate, NiceCandidate *rcandidate,
@@ -275,9 +274,6 @@ static void complete_data_channel_and_ack(OwrTransportAgent *transport_agent,
 static void on_datachannel_send(OwrTransportAgent *transport_agent, guint8 *data, guint len,
     gboolean is_binary, OwrDataChannel *data_channel);
 static void maybe_close_data_channel(OwrTransportAgent *transport_agent, DataChannel *data_channel_info);
-
-static gboolean on_payload_adaptation_request(GstElement *screamqueue, guint pt,
-    OwrMediaSession *media_session);
 
 static void owr_transport_agent_finalize(GObject *object)
 {
@@ -1987,25 +1983,6 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
         }
     }
     g_mutex_unlock(&transport_agent->priv->sessions_lock);
-}
-
-static gboolean maybe_handle_new_send_source_with_payload_from_main_thread(GHashTable *args)
-{
-    OwrTransportAgent *transport_agent;
-    OwrMediaSession *session;
-
-    session = OWR_MEDIA_SESSION(g_hash_table_lookup(args, "session"));
-    g_return_val_if_fail(OWR_IS_MEDIA_SESSION(session), FALSE);
-    transport_agent = OWR_TRANSPORT_AGENT(g_hash_table_lookup(args, "transport_agent"));
-    g_return_val_if_fail(OWR_IS_TRANSPORT_AGENT(transport_agent), FALSE);
-
-    maybe_handle_new_send_source_with_payload(transport_agent, session);
-
-    g_hash_table_destroy(args);
-    g_object_unref(session);
-    g_object_unref(transport_agent);
-
-    return FALSE;
 }
 
 static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session)
