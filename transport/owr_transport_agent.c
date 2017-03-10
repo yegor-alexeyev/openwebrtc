@@ -131,6 +131,7 @@ typedef struct {
     GstElement *nice_src_rtcp, *dtls_dec_rtcp;
     gulong nice_src_block_rtcp;
 
+    GstElement *nice_sink_rtp, *dtls_enc_rtp;
     GstElement *nice_sink_rtcp, *dtls_enc_rtcp;
 } PendingSessionInfo;
 
@@ -1946,6 +1947,9 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
 
             gst_element_set_locked_state(pending_session_info->dtls_dec_rtp, FALSE);
             sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_dec_rtp);
+            g_warn_if_fail(sync_ok);
+            gst_element_set_locked_state(pending_session_info->dtls_enc_rtp, FALSE);
+            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_enc_rtp);
             g_warn_if_fail(sync_ok);
 
             pad = gst_element_get_static_pad(pending_session_info->nice_src_rtp, "src");
