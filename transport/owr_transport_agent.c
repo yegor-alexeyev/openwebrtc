@@ -230,6 +230,7 @@ static gboolean on_sending_rtcp(GObject *session, GstBuffer *buffer, gboolean ea
 static void on_receiving_rtcp(GObject *session, GstBuffer *buffer, OwrTransportAgent *agent);
 static void on_feedback_rtcp(GObject *session, guint type, guint fbtype, guint sender_ssrc, guint media_ssrc, GstBuffer *fci, OwrTransportAgent *transport_agent);
 static GstPadProbeReturn probe_save_ts(GstPad *srcpad, GstPadProbeInfo *info, void *user_data);
+static GstPadProbeReturn probe_rtp_info(GstPad *srcpad, GstPadProbeInfo *info, ScreamRx *scream_rx);
 static void on_ssrc_active(GstElement *rtpbin, guint session_id, guint ssrc, OwrTransportAgent *transport_agent);
 static void on_new_jitterbuffer(GstElement *rtpbin, GstElement *jitterbuffer, guint session_id, guint ssrc, OwrTransportAgent *transport_agent);
 static void prepare_rtcp_stats(OwrMediaSession *media_session, GObject *rtp_source);
@@ -1582,6 +1583,16 @@ static void prepare_transport_bin_send_elements(OwrTransportAgent *transport_age
     g_hash_table_insert(transport_agent->priv->send_bins, GINT_TO_POINTER(stream_id), send_bin_info);
 }
 
+static GstPadProbeReturn nice_src_pad_block(GstPad *pad, GstPadProbeInfo *info, AgentAndSessionIdPair *data)
+{
+    OWR_UNUSED(pad);
+    OWR_UNUSED(info);
+    OWR_UNUSED(data);
+
+    return GST_PAD_PROBE_OK;
+}
+
+
 static void prepare_transport_bin_data_receive_elements(OwrTransportAgent *transport_agent,
     guint stream_id)
 {
@@ -1890,7 +1901,7 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
     pending_session_info = g_hash_table_lookup(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id));
     if (pending_session_info) {
         if (component_id == NICE_COMPONENT_TYPE_RTP && pending_session_info->nice_src_block_rtp) {
-            gboolean sync_ok;
+            gboolean sync_ok, link_ok;
 
             gst_element_set_locked_state(pending_session_info->dtls_enc_rtp, FALSE);
             sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_enc_rtp);
@@ -4125,6 +4136,164 @@ static gint compare_rtcp_scream(GHashTable *a, GHashTable *b)
     if (session_id_a == session_id_b && ssrc_a == ssrc_b)
         return 0;
     return -1;
+}
+
+
+static GstPadProbeReturn probe_rtp_info(GstPad *srcpad, GstPadProbeInfo *info, ScreamRx *scream_rx)
+{
+    GstBuffer *buffer = NULL;
+    GstRTPBuffer rtp_buf = GST_RTP_BUFFER_INIT;
+    guint64 arrival_time = GST_CLOCK_TIME_NONE;
+    OwrTransportAgent *transport_agent = NULL;
+    OwrTransportAgentPrivate *priv = NULL;
+    guint session_id = 0;
+    guint8 pt = 0;
+    gboolean rtp_mapped = FALSE;
+    GObject *rtp_session = NULL;
+
+    transport_agent = scream_rx->transport_agent;
+    session_id = scream_rx->session_id;
+
+    g_assert(transport_agent);
+    priv = transport_agent->priv;
+
+    buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+
+    if (scream_rx->rtx_pt == -2 || scream_rx->adapt) {
+        if (!gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp_buf)) {
+            g_warning("Failed to map RTP buffer");
+            goto end;
+        }
+
+        rtp_mapped = TRUE;
+        pt = gst_rtp_buffer_get_payload_type(&rtp_buf);
+    }
+
+    g_signal_emit_by_name(priv->rtpbin, "get-internal-session", session_id, &rtp_session);
+
+    if (G_UNLIKELY(scream_rx->rtx_pt == -2)) {
+        OwrMediaSession *media_session;
+        OwrPayload *rx_payload;
+        OwrAdaptationType adapt_type;
+        media_session = OWR_MEDIA_SESSION(get_session(transport_agent, session_id));
+        rx_payload = _owr_media_session_get_receive_payload(media_session, pt);
+        g_object_get(rx_payload, "rtx-payload-type", &scream_rx->rtx_pt,
+            "adaptation", &adapt_type, NULL);
+        scream_rx->adapt = (adapt_type == OWR_ADAPTATION_TYPE_SCREAM);
+        g_object_unref(media_session);
+        g_object_unref(rx_payload);
+
+	g_object_set(rtp_session, "rtcp-reduced-size", TRUE, NULL);
+    }
+
+    OWR_UNUSED(srcpad);
+
+    if (scream_rx->adapt) {
+        GstMeta *meta;
+        const GstMetaInfo *meta_info = OWR_ARRIVAL_TIME_META_INFO;
+        GHashTable *rtcp_info;
+        guint16 seq = 0;
+        guint ssrc = 0;
+        GList *it;
+        guint diff, tmp_highest_seq, tmp_seq;
+
+        if ((meta = gst_buffer_get_meta(buffer, meta_info->api))) {
+            OwrArrivalTimeMeta *atmeta = (OwrArrivalTimeMeta *) meta;
+            arrival_time = atmeta->arrival_time;
+        }
+
+        if (arrival_time == GST_CLOCK_TIME_NONE) {
+            GST_WARNING("No arrival time available for RTP packet");
+            goto end;
+        }
+
+        ssrc = gst_rtp_buffer_get_ssrc(&rtp_buf);
+        seq = gst_rtp_buffer_get_seq(&rtp_buf);
+
+        if (pt == scream_rx->rtx_pt && scream_rx->adapt)
+            goto end;
+
+        tmp_seq = seq;
+        tmp_highest_seq = scream_rx->highest_seq;
+        if (!scream_rx->highest_seq && !scream_rx->ack_vec) { /* Initial condition */
+            scream_rx->highest_seq = seq;
+            tmp_highest_seq = scream_rx->highest_seq;
+        } else if ((seq < scream_rx->highest_seq) && (scream_rx->highest_seq - seq > 20000))
+            tmp_seq = (guint64)seq + 65536;
+        else if ((seq > scream_rx->highest_seq) && (seq - scream_rx->highest_seq > 20000))
+            tmp_highest_seq += 65536;
+
+        /* in order */
+        if (tmp_seq >= tmp_highest_seq) {
+            diff = tmp_seq - tmp_highest_seq;
+            if (diff) {
+                if (diff >= 16)
+                    scream_rx->ack_vec = 0x0000; /* ack_vec can be reduced to guint16, initialize with 0xffff */
+                else {
+                    // Fill with potential zeros
+                    scream_rx->ack_vec = scream_rx->ack_vec >> diff;
+                    // Add previous highest seq nr to ack vector
+                    scream_rx->ack_vec = scream_rx->ack_vec | (1 << (16 - diff));
+                }
+            }
+
+            scream_rx->highest_seq = seq;
+        } else { /* out of order */
+            diff = tmp_highest_seq - tmp_seq;
+            if (diff < 16)
+                scream_rx->ack_vec = scream_rx->ack_vec | (1 << (16 - diff));
+        }
+        if (!(scream_rx->ack_vec & (1 << (16-5)))) {
+            /*
+            * Detect lost packets with a little grace time to cater
+            * for out-of-order delivery
+            */
+            scream_rx->n_loss++; /* n_loss is a guint8 , initialize to 0 */
+        }
+
+        /*
+        * ECN is not implemented but we add this just to not forget it
+        * in case ECN flies some day
+        */
+        scream_rx->n_ecn = 0;
+        scream_rx->last_feedback_wallclock = (guint32)(arrival_time / 1000000);
+        rtcp_info = g_hash_table_new(g_str_hash, g_str_equal);
+        g_hash_table_insert(rtcp_info, "pt", GUINT_TO_POINTER(GST_RTCP_TYPE_RTPFB));
+        g_hash_table_insert(rtcp_info, "fmt", GUINT_TO_POINTER(GST_RTCP_RTPFB_TYPE_SCREAM));
+        g_hash_table_insert(rtcp_info, "ssrc", GUINT_TO_POINTER(ssrc));
+        g_hash_table_insert(rtcp_info, "last-feedback-wallclock",
+            GUINT_TO_POINTER(scream_rx->last_feedback_wallclock));
+        g_hash_table_insert(rtcp_info, "highest-seq",
+            GUINT_TO_POINTER(scream_rx->highest_seq));
+        g_hash_table_insert(rtcp_info, "n-loss", GUINT_TO_POINTER(scream_rx->n_loss));
+        g_hash_table_insert(rtcp_info, "n-ecn", GUINT_TO_POINTER(scream_rx->n_ecn));
+        g_hash_table_insert(rtcp_info, "session-id", GUINT_TO_POINTER(session_id));
+
+        GST_LOG_OBJECT(transport_agent, "queuing up scream feedback: %u, %u, %u, %u",
+            scream_rx->highest_seq, scream_rx->n_loss, scream_rx->n_ecn,
+            scream_rx->last_feedback_wallclock);
+
+        g_mutex_lock(&priv->rtcp_lock);
+        it = g_list_find_custom(priv->rtcp_list, (gpointer)rtcp_info,
+            (GCompareFunc)compare_rtcp_scream);
+
+        if (it) {
+            g_hash_table_unref((GHashTable *)it->data);
+            priv->rtcp_list = g_list_delete_link(priv->rtcp_list, it);
+        }
+        priv->rtcp_list = g_list_append(priv->rtcp_list, rtcp_info);
+        OWR_UNUSED(it);
+        g_mutex_unlock(&priv->rtcp_lock);
+        g_signal_emit_by_name(rtp_session, "send-rtcp", 20000000);
+    }
+
+end:
+    if (rtp_mapped)
+        gst_rtp_buffer_unmap(&rtp_buf);
+    if (rtp_session)
+        g_object_unref(rtp_session);
+
+    return GST_PAD_PROBE_OK;
 }
 
 
