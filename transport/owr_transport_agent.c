@@ -4112,22 +4112,6 @@ static GstPadProbeReturn probe_save_ts(GstPad *srcpad, GstPadProbeInfo *info, vo
 }
 
 
-
-static gint compare_rtcp_scream(GHashTable *a, GHashTable *b)
-{
-    guint session_id_a, session_id_b, ssrc_a, ssrc_b;
-
-    session_id_a = GPOINTER_TO_UINT(g_hash_table_lookup(a, "session-id"));
-    ssrc_a = GPOINTER_TO_UINT(g_hash_table_lookup(a, "ssrc"));
-    session_id_b = GPOINTER_TO_UINT(g_hash_table_lookup(b, "session-id"));
-    ssrc_b = GPOINTER_TO_UINT(g_hash_table_lookup(b, "ssrc"));
-
-    if (session_id_a == session_id_b && ssrc_a == ssrc_b)
-        return 0;
-    return -1;
-}
-
-
 static gboolean on_payload_adaptation_request(GstElement *screamqueue, guint pt,
     OwrMediaSession *media_session)
 {
