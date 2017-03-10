@@ -1065,6 +1065,28 @@ static gboolean add_session(GHashTable *args)
         prepare_transport_bin_receive_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
         prepare_transport_bin_send_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
 
+
+
+        {
+            GstPad *pad;
+            gboolean sync_ok, link_ok;
+
+            link_ok = gst_element_link(pending_session_info->nice_src_rtp, pending_session_info->dtls_dec_rtp);
+            g_warn_if_fail(link_ok);
+
+            gst_element_set_locked_state(pending_session_info->dtls_dec_rtp, FALSE);
+            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_dec_rtp);
+            g_warn_if_fail(sync_ok);
+            gst_element_set_locked_state(pending_session_info->dtls_enc_rtp, FALSE);
+            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_enc_rtp);
+            g_warn_if_fail(sync_ok);
+
+            pad = gst_element_get_static_pad(pending_session_info->nice_src_rtp, "src");
+            gst_pad_remove_probe(pad, pending_session_info->nice_src_block_rtp);
+            gst_object_unref(pad);
+            pending_session_info->nice_src_block_rtp = 0;
+        }
+
         g_mutex_lock(&transport_agent->priv->sessions_lock);
         g_hash_table_insert(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id), pending_session_info);
         g_mutex_unlock(&transport_agent->priv->sessions_lock);
@@ -2015,6 +2037,7 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
     OWR_UNUSED(nice_agent);
     OWR_UNUSED(lcandidate);
     OWR_UNUSED(rcandidate);
+    OWR_UNUSED(component_id);
 
     g_return_if_fail(OWR_IS_TRANSPORT_AGENT(transport_agent));
 
@@ -2024,25 +2047,6 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
     g_mutex_lock(&transport_agent->priv->sessions_lock);
     pending_session_info = g_hash_table_lookup(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id));
     if (pending_session_info) {
-        if (component_id == NICE_COMPONENT_TYPE_RTP && pending_session_info->nice_src_block_rtp) {
-            GstPad *pad;
-            gboolean sync_ok, link_ok;
-
-            link_ok = gst_element_link(pending_session_info->nice_src_rtp, pending_session_info->dtls_dec_rtp);
-            g_warn_if_fail(link_ok);
-
-            gst_element_set_locked_state(pending_session_info->dtls_dec_rtp, FALSE);
-            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_dec_rtp);
-            g_warn_if_fail(sync_ok);
-            gst_element_set_locked_state(pending_session_info->dtls_enc_rtp, FALSE);
-            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_enc_rtp);
-            g_warn_if_fail(sync_ok);
-
-            pad = gst_element_get_static_pad(pending_session_info->nice_src_rtp, "src");
-            gst_pad_remove_probe(pad, pending_session_info->nice_src_block_rtp);
-            gst_object_unref(pad);
-            pending_session_info->nice_src_block_rtp = 0;
-        }
 
         /* when doing standalone RTCP we unblock the RTCP bin and sync its state whenever the first component of
          * the stream is connected. This is because the actual RTCP connection might be established
