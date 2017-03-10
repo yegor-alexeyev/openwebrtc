@@ -2008,39 +2008,6 @@ static gboolean maybe_handle_new_send_source_with_payload_from_main_thread(GHash
     return FALSE;
 }
 
-static void
-on_dtls_enc_key_set(GstElement *dtls_srtp_enc, AgentAndSessionIdPair *data)
-{
-    OwrTransportAgent *transport_agent = data->transport_agent;
-    OwrSession *session;
-    guint stream_id = data->session_id;
-    PendingSessionInfo *pending_session_info;
-
-    session = get_session(transport_agent, stream_id);
-    g_return_if_fail(session);
-
-    /* Once we have the key, the DTLS handshake is done and we can start sending data here. Note
-     * that we only wait for the DTLS handshake to be completed for the RTP component.
-     */
-    g_mutex_lock(&transport_agent->priv->sessions_lock);
-    pending_session_info = g_hash_table_lookup(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id));
-    /* FIXME: What to do about RTCP? It's not guaranteed to ever be enabled if
-     * RTCP muxing is used but the usage wasn't known beforehand
-     */
-    if (pending_session_info && dtls_srtp_enc == pending_session_info->dtls_enc_rtp) {
-        GHashTable *args;
-
-        g_hash_table_remove(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id));
-        args = g_hash_table_new(g_str_hash, g_str_equal);
-        g_hash_table_insert(args, "session", session);
-        g_hash_table_insert(args, "transport_agent", g_object_ref(transport_agent));
-        _owr_schedule_with_hash_table((GSourceFunc)maybe_handle_new_send_source_with_payload_from_main_thread, args);
-    }
-    g_mutex_unlock(&transport_agent->priv->sessions_lock);
-
-    g_object_unref(session);
-}
-
 static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session)
 {
     GHashTableIter iter;
@@ -4349,18 +4316,3 @@ end:
 }
 
 
-static gboolean on_payload_adaptation_request(GstElement *screamqueue, guint pt,
-    OwrMediaSession *media_session)
-{
-    OwrPayload *payload;
-    guint pt_rtx;
-    OwrAdaptationType adapt_type;
-
-    OWR_UNUSED(screamqueue);
-    payload = _owr_media_session_get_send_payload(media_session);
-    g_assert(pt);
-    g_object_get(payload, "rtx-payload-type", &pt_rtx, "adaptation", &adapt_type, NULL);
-    g_object_unref(payload);
-    /* Use adaptation for this payload if not retransmission */
-    return (adapt_type == OWR_ADAPTATION_TYPE_SCREAM) && (pt != pt_rtx);
-}
