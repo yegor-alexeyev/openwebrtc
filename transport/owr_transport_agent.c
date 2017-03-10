@@ -125,6 +125,7 @@ typedef struct {
 } SendBinInfo;
 
 typedef struct {
+    GstElement *nice_src_rtp, *dtls_dec_rtp;
     gulong nice_src_block_rtp;
 
     GstElement *nice_src_rtcp, *dtls_dec_rtcp;
@@ -201,6 +202,7 @@ static gboolean add_session(GHashTable *args);
 static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session);
 static OwrSession * get_session(OwrTransportAgent *transport_agent, guint stream_id);
 static void prepare_transport_bin_send_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
+static void prepare_transport_bin_receive_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
 static void prepare_transport_bin_data_receive_elements(OwrTransportAgent *transport_agent,
     guint stream_id);
 static void prepare_transport_bin_data_send_elements(OwrTransportAgent *transport_agent,
@@ -1060,6 +1062,7 @@ static gboolean add_session(GHashTable *args)
         _owr_media_session_set_on_send_payload(OWR_MEDIA_SESSION(session),
             g_cclosure_new_object_swap(G_CALLBACK(on_new_send_payload), G_OBJECT(transport_agent)));
         pending_session_info = g_new0(PendingSessionInfo, 1);
+        prepare_transport_bin_receive_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
         prepare_transport_bin_send_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
 
         g_mutex_lock(&transport_agent->priv->sessions_lock);
@@ -1592,6 +1595,127 @@ static GstPadProbeReturn nice_src_pad_block(GstPad *pad, GstPadProbeInfo *info, 
     return GST_PAD_PROBE_OK;
 }
 
+static void prepare_transport_bin_receive_elements(OwrTransportAgent *transport_agent,
+    guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info)
+{
+    GstElement *nice_element, *dtls_srtp_bin, *funnel;
+    GstPad *rtp_src_pad, *rtcp_src_pad, *rtp_sink_pad;
+    GstPad *nice_src_pad;
+    gchar *rtpbin_pad_name;
+    gboolean linked_ok, synced_ok;
+    GstElement *receive_input_bin;
+    ScreamRx *scream_rx;
+#ifdef TEST_RTX
+    GstElement *identity;
+#endif
+    gchar *bin_name;
+    AgentAndSessionIdPair *agent_and_session_id_pair;
+
+    g_return_if_fail(OWR_IS_TRANSPORT_AGENT(transport_agent));
+
+    bin_name = g_strdup_printf("receive-input-bin-%u", stream_id);
+    receive_input_bin = gst_bin_new(bin_name);
+    g_free(bin_name);
+
+    if (!gst_bin_add(GST_BIN(transport_agent->priv->transport_bin), receive_input_bin)) {
+        GST_ERROR("Failed to add receive-input-bin-%u to parent bin", stream_id);
+        return;
+    }
+
+    if (!gst_element_sync_state_with_parent(receive_input_bin)) {
+        GST_ERROR("Failed to sync receive-input-bin-%u state with parent bin", stream_id);
+        return;
+    }
+
+    pending_session_info->nice_src_rtp = nice_element = add_nice_element(transport_agent, stream_id, FALSE, FALSE, receive_input_bin);
+    pending_session_info->dtls_dec_rtp = dtls_srtp_bin = add_dtls_srtp_bin(transport_agent, stream_id, FALSE, FALSE, receive_input_bin);
+
+    agent_and_session_id_pair = g_new0(AgentAndSessionIdPair, 1);
+    agent_and_session_id_pair->transport_agent = transport_agent;
+    agent_and_session_id_pair->session_id = stream_id;
+    nice_src_pad = gst_element_get_static_pad(nice_element, "src");
+    pending_session_info->nice_src_block_rtp = gst_pad_add_probe(nice_src_pad, GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_BUFFER_LIST, (GstPadProbeCallback)nice_src_pad_block, agent_and_session_id_pair, (GDestroyNotify) g_free);
+    gst_object_unref(nice_src_pad);
+
+    synced_ok = gst_element_sync_state_with_parent(nice_element);
+    g_warn_if_fail(synced_ok);
+
+    rtp_src_pad = gst_element_get_static_pad(dtls_srtp_bin, "rtp_src");
+    ghost_pad_and_add_to_bin(rtp_src_pad, receive_input_bin, "rtp_src");
+    gst_object_unref(rtp_src_pad);
+
+    rtpbin_pad_name = g_strdup_printf("recv_rtp_sink_%u", stream_id);
+
+#ifndef TEST_RTX
+    linked_ok = gst_element_link_pads(receive_input_bin, "rtp_src", transport_agent->priv->rtpbin,
+        rtpbin_pad_name);
+#else
+    identity = gst_element_factory_make("identity", NULL);
+    g_object_set(identity, "drop-probability", 0.01, NULL);
+    gst_bin_add(GST_BIN(transport_agent->priv->transport_bin), identity);
+    gst_element_link_pads(receive_input_bin, "rtp_src", identity, "sink");
+    linked_ok = gst_element_link_pads(identity, "src", transport_agent->priv->rtpbin,
+        rtpbin_pad_name);
+    gst_element_sync_state_with_parent(identity);
+#endif
+    g_warn_if_fail(linked_ok);
+    g_free(rtpbin_pad_name);
+
+    if (!rtcp_mux) {
+        funnel = gst_element_factory_make("funnel", NULL);
+        gst_bin_add(GST_BIN(receive_input_bin), funnel);
+
+        linked_ok = gst_element_link_pads(dtls_srtp_bin, "rtcp_src", funnel, "sink_0");
+        g_warn_if_fail(linked_ok);
+
+        pending_session_info->nice_src_rtcp = nice_element = add_nice_element(transport_agent, stream_id, FALSE, TRUE, receive_input_bin);
+        pending_session_info->dtls_dec_rtcp = dtls_srtp_bin = add_dtls_srtp_bin(transport_agent, stream_id, FALSE, TRUE, receive_input_bin);
+
+        agent_and_session_id_pair = g_new0(AgentAndSessionIdPair, 1);
+        agent_and_session_id_pair->transport_agent = transport_agent;
+        agent_and_session_id_pair->session_id = stream_id;
+        nice_src_pad = gst_element_get_static_pad(nice_element, "src");
+        pending_session_info->nice_src_block_rtcp = gst_pad_add_probe(nice_src_pad, GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_BUFFER_LIST, (GstPadProbeCallback)nice_src_pad_block, agent_and_session_id_pair, (GDestroyNotify) g_free);
+        gst_object_unref(nice_src_pad);
+
+        linked_ok = gst_element_link_pads(dtls_srtp_bin, "rtcp_src", funnel, "sink_1");
+        g_warn_if_fail(linked_ok);
+
+        rtcp_src_pad = gst_element_get_static_pad(funnel, "src");
+        ghost_pad_and_add_to_bin(rtcp_src_pad, receive_input_bin, "rtcp_src");
+        gst_object_unref(rtcp_src_pad);
+
+        rtpbin_pad_name = g_strdup_printf("recv_rtcp_sink_%u", stream_id);
+        linked_ok = gst_element_link_pads(receive_input_bin, "rtcp_src",
+            transport_agent->priv->rtpbin, rtpbin_pad_name);
+        g_warn_if_fail(linked_ok);
+        g_free(rtpbin_pad_name);
+        synced_ok = gst_element_sync_state_with_parent(funnel);
+        g_warn_if_fail(synced_ok);
+    } else {
+        rtcp_src_pad = gst_element_get_static_pad(dtls_srtp_bin, "rtcp_src");
+        ghost_pad_and_add_to_bin(rtcp_src_pad, receive_input_bin, "rtcp_src");
+        gst_object_unref(rtcp_src_pad);
+        rtpbin_pad_name = g_strdup_printf("recv_rtcp_sink_%u", stream_id);
+        linked_ok = gst_element_link_pads(receive_input_bin, "rtcp_src",
+            transport_agent->priv->rtpbin, rtpbin_pad_name);
+        g_warn_if_fail(linked_ok);
+        g_free(rtpbin_pad_name);
+    }
+
+    rtpbin_pad_name = g_strdup_printf("recv_rtp_sink_%u", stream_id);
+    rtp_sink_pad = gst_element_get_static_pad(transport_agent->priv->rtpbin, rtpbin_pad_name);
+    g_free(rtpbin_pad_name);
+    scream_rx = g_new0(ScreamRx, 1);
+    scream_rx->rtx_pt = -2; /* unknown */
+    scream_rx->transport_agent = transport_agent;
+    scream_rx->session_id = stream_id;
+    scream_rx->adapt = TRUE; /* Always initiates to TRUE. Sets to TRUE or FALSE in probe_rtp_info */
+    gst_pad_add_probe(rtp_sink_pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)probe_rtp_info,
+        scream_rx, g_free);
+    gst_object_unref(rtp_sink_pad);
+}
+
 
 static void prepare_transport_bin_data_receive_elements(OwrTransportAgent *transport_agent,
     guint stream_id)
@@ -1901,12 +2025,22 @@ static void on_new_selected_pair(NiceAgent *nice_agent,
     pending_session_info = g_hash_table_lookup(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id));
     if (pending_session_info) {
         if (component_id == NICE_COMPONENT_TYPE_RTP && pending_session_info->nice_src_block_rtp) {
+            GstPad *pad;
             gboolean sync_ok, link_ok;
 
+            link_ok = gst_element_link(pending_session_info->nice_src_rtp, pending_session_info->dtls_dec_rtp);
+            g_warn_if_fail(link_ok);
+
+            gst_element_set_locked_state(pending_session_info->dtls_dec_rtp, FALSE);
+            sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_dec_rtp);
+            g_warn_if_fail(sync_ok);
             gst_element_set_locked_state(pending_session_info->dtls_enc_rtp, FALSE);
             sync_ok = gst_element_sync_state_with_parent(pending_session_info->dtls_enc_rtp);
             g_warn_if_fail(sync_ok);
 
+            pad = gst_element_get_static_pad(pending_session_info->nice_src_rtp, "src");
+            gst_pad_remove_probe(pad, pending_session_info->nice_src_block_rtp);
+            gst_object_unref(pad);
             pending_session_info->nice_src_block_rtp = 0;
         }
 
