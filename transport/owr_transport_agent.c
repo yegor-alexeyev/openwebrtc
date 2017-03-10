@@ -201,7 +201,6 @@ static void update_helper_servers(OwrTransportAgent *transport_agent, guint stre
 static gboolean add_session(GHashTable *args);
 static guint get_stream_id(OwrTransportAgent *transport_agent, OwrSession *session);
 static OwrSession * get_session(OwrTransportAgent *transport_agent, guint stream_id);
-static void prepare_transport_bin_send_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
 static void prepare_transport_bin_receive_elements(OwrTransportAgent *transport_agent, guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info);
 static void prepare_transport_bin_data_receive_elements(OwrTransportAgent *transport_agent,
     guint stream_id);
@@ -1063,7 +1062,6 @@ static gboolean add_session(GHashTable *args)
             g_cclosure_new_object_swap(G_CALLBACK(on_new_send_payload), G_OBJECT(transport_agent)));
         pending_session_info = g_new0(PendingSessionInfo, 1);
         prepare_transport_bin_receive_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
-        prepare_transport_bin_send_elements(transport_agent, stream_id, rtcp_mux, pending_session_info);
 
         g_mutex_lock(&transport_agent->priv->sessions_lock);
         g_hash_table_insert(transport_agent->priv->pending_sessions, GUINT_TO_POINTER(stream_id), pending_session_info);
@@ -1504,86 +1502,6 @@ static void link_rtpbin_to_send_output_bin(OwrTransportAgent *transport_agent, g
 
         send_bin_info->linked_rtcp = TRUE;
     }
-}
-
-static void prepare_transport_bin_send_elements(OwrTransportAgent *transport_agent,
-    guint stream_id, gboolean rtcp_mux, PendingSessionInfo *pending_session_info)
-{
-    GstElement *nice_element, *dtls_srtp_bin_rtp, *dtls_srtp_bin_rtcp = NULL;
-    GstElement *scream_queue = NULL;
-    gboolean linked_ok, synced_ok;
-    GstElement *send_output_bin;
-    SendBinInfo *send_bin_info;
-    gchar *bin_name, *dtls_srtp_pad_name;
-    OwrMediaSession *media_session;
-    AgentAndSessionIdPair *agent_and_session_id_pair;
-
-    g_return_if_fail(OWR_IS_TRANSPORT_AGENT(transport_agent));
-
-    bin_name = g_strdup_printf("send-output-bin-%u", stream_id);
-    send_output_bin = gst_bin_new(bin_name);
-    g_free(bin_name);
-
-    if (!gst_bin_add(GST_BIN(transport_agent->priv->transport_bin), send_output_bin)) {
-        GST_ERROR("Failed to add send-output-bin-%u to parent bin", stream_id);
-        return;
-    }
-
-    if (!gst_element_sync_state_with_parent(send_output_bin)) {
-        GST_ERROR("Failed to sync send-output-bin-%u state with parent bin", stream_id);
-        return;
-    }
-
-    media_session = OWR_MEDIA_SESSION(get_session(transport_agent, stream_id));
-    scream_queue = gst_element_factory_make("screamqueue", "screamqueue");
-    g_assert(scream_queue);
-    g_object_set(scream_queue, "scream-controller-id", transport_agent->priv->agent_id, NULL);
-    g_signal_connect(scream_queue, "on-payload-adaptation-request",
-        (GCallback)on_payload_adaptation_request, media_session);
-    gst_bin_add(GST_BIN(send_output_bin), scream_queue);
-
-    pending_session_info->nice_sink_rtp = nice_element = add_nice_element(transport_agent, stream_id, TRUE, FALSE, send_output_bin);
-    pending_session_info->dtls_enc_rtp = dtls_srtp_bin_rtp = add_dtls_srtp_bin(transport_agent, stream_id, TRUE, FALSE, send_output_bin);
-    linked_ok = gst_element_link(dtls_srtp_bin_rtp, nice_element);
-    g_warn_if_fail(linked_ok);
-
-    agent_and_session_id_pair = g_new0(AgentAndSessionIdPair, 1);
-    agent_and_session_id_pair->transport_agent = transport_agent;
-    agent_and_session_id_pair->session_id = stream_id;
-    g_signal_connect_data(dtls_srtp_bin_rtp, "on-key-set", G_CALLBACK(on_dtls_enc_key_set), agent_and_session_id_pair, (GClosureNotify) g_free, 0);
-
-    dtls_srtp_pad_name = g_strdup_printf("rtp_sink_%u", stream_id);
-    linked_ok = gst_element_link_pads(scream_queue, "src", dtls_srtp_bin_rtp, dtls_srtp_pad_name);
-    g_free(dtls_srtp_pad_name);
-    g_warn_if_fail(linked_ok);
-
-    synced_ok = gst_element_sync_state_with_parent(nice_element);
-    g_warn_if_fail(synced_ok);
-    synced_ok = gst_element_sync_state_with_parent(scream_queue);
-    g_warn_if_fail(synced_ok);
-
-    if (!rtcp_mux) {
-        pending_session_info->nice_sink_rtcp = nice_element = add_nice_element(transport_agent, stream_id, TRUE, TRUE, send_output_bin);
-        pending_session_info->dtls_enc_rtcp = dtls_srtp_bin_rtcp = add_dtls_srtp_bin(transport_agent, stream_id, TRUE, TRUE, send_output_bin);
-        linked_ok = gst_element_link(dtls_srtp_bin_rtcp, nice_element);
-        g_warn_if_fail(linked_ok);
-
-        agent_and_session_id_pair = g_new0(AgentAndSessionIdPair, 1);
-        agent_and_session_id_pair->transport_agent = transport_agent;
-        agent_and_session_id_pair->session_id = stream_id;
-        g_signal_connect_data(dtls_srtp_bin_rtp, "on-key-set", G_CALLBACK(on_dtls_enc_key_set), agent_and_session_id_pair, (GClosureNotify) g_free, 0);
-
-        synced_ok = gst_element_sync_state_with_parent(nice_element);
-        g_warn_if_fail(synced_ok);
-    }
-
-    send_bin_info = g_new(SendBinInfo, 1);
-    send_bin_info->dtls_srtp_bin_rtp = dtls_srtp_bin_rtp;
-    send_bin_info->dtls_srtp_bin_rtcp = dtls_srtp_bin_rtcp;
-    send_bin_info->send_output_bin = send_output_bin;
-    send_bin_info->linked_rtcp = FALSE;
-
-    g_hash_table_insert(transport_agent->priv->send_bins, GINT_TO_POINTER(stream_id), send_bin_info);
 }
 
 static GstPadProbeReturn nice_src_pad_block(GstPad *pad, GstPadProbeInfo *info, AgentAndSessionIdPair *data)
